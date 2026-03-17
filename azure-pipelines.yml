@@ -1,0 +1,75 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+# Variable Group を環境ごとに差し替えるためのパラメータ。
+# 空文字の場合は group を読み込まず、パイプライン定義エラーを回避する。
+parameters:
+  - name: androidSecretsGroup
+    type: string
+    default: ''
+  - name: iosSecretsGroup
+    type: string
+    default: ''
+
+stages:
+  - stage: validate
+    displayName: Validate Pipeline Inputs
+    jobs:
+      - job: validate_inputs
+        displayName: Validate variable-group configuration
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - bash: |
+              echo "androidSecretsGroup='${{ parameters.androidSecretsGroup }}'"
+              echo "iosSecretsGroup='${{ parameters.iosSecretsGroup }}'"
+
+              if [ -z "${{ parameters.androidSecretsGroup }}" ]; then
+                echo "##vso[task.logissue type=warning]androidSecretsGroup is empty. android_prod will run without variable-group secrets."
+              fi
+
+              if [ -z "${{ parameters.iosSecretsGroup }}" ]; then
+                echo "##vso[task.logissue type=warning]iosSecretsGroup is empty. ios_prod will run without variable-group secrets."
+              fi
+            displayName: Print configuration
+
+  - stage: deploy
+    displayName: Deploy
+    dependsOn: validate
+    jobs:
+      - job: android_prod
+        displayName: Android production deploy
+        pool:
+          vmImage: ubuntu-latest
+        variables:
+          - name: PLATFORM
+            value: android
+          - ${{ if ne(parameters.androidSecretsGroup, '') }}:
+              - group: ${{ parameters.androidSecretsGroup }}
+        steps:
+          - bash: |
+              echo "Deploying Android with PLATFORM=$(PLATFORM)"
+              echo "If variable group is configured, secrets are now available as pipeline variables."
+            displayName: Android deploy placeholder
+
+      - job: ios_prod
+        displayName: iOS production deploy
+        pool:
+          vmImage: ubuntu-latest
+        variables:
+          - name: PLATFORM
+            value: ios
+          - ${{ if ne(parameters.iosSecretsGroup, '') }}:
+              - group: ${{ parameters.iosSecretsGroup }}
+        steps:
+          - bash: |
+              echo "Deploying iOS with PLATFORM=$(PLATFORM)"
+              echo "If variable group is configured, secrets are now available as pipeline variables."
+            displayName: iOS deploy placeholder
